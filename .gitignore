@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+**/build/
+out/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and temp
+*.log
+*.tmp
+tmp/
+

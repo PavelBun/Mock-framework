@@ -5,3 +5,7 @@
 1. Спроектировать API, включающий аналоги @Mock, when, thenReturn, thenThrow
 2. Реализовать для динамических методов классов и интерфейсов
 3. Реализовать для статических методов
+
+## Документация по статической части
+
+- [mock-framework-static/README.md](mock-framework-static/README.md)
