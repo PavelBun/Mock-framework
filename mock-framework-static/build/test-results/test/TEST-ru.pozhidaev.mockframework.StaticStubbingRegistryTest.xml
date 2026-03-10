@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="ru.pozhidaev.mockframework.StaticStubbingRegistryTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-03-10T15:49:02.475Z" hostname="MacBook-Air--pozhidaev.local" time="0.008">
-  <properties/>
-  <testcase name="shouldSupportOverloadedStaticMethodsBySignature()" classname="ru.pozhidaev.mockframework.StaticStubbingRegistryTest" time="0.007"/>
-  <testcase name="shouldSupportThenThrowForStaticMethod()" classname="ru.pozhidaev.mockframework.StaticStubbingRegistryTest" time="0.0"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>
