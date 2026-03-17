@@ -21,7 +21,7 @@ public final class DynamicMockCreator {
             return createClassMock(typeToMock);
         }
     }
-
+    @SuppressWarnings("unchecked")
     private static <T> T createInterfaceMock(Class<T> interfaceType) {
         ProxyInvocationHandler handler = new ProxyInvocationHandler();
         return (T) Proxy.newProxyInstance(
@@ -29,7 +29,7 @@ public final class DynamicMockCreator {
                 new Class<?>[]{interfaceType},
                 handler);
     }
-
+    @SuppressWarnings("unchecked")
     private static <T> T createClassMock(Class<T> classToMock) {
         try {
             return new ByteBuddy()

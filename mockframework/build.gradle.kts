@@ -32,6 +32,10 @@ tasks.test {
     dependsOn(tasks.jar)
     useJUnitPlatform()
     jvmArgs("-javaagent:${tasks.jar.get().archiveFile.get().asFile.absolutePath}")
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
 }
 
 java {
