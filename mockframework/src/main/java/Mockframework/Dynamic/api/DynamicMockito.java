@@ -5,6 +5,9 @@ import Mockframework.Dynamic.creator.DynamicMockCreator;
 import Mockframework.Dynamic.registry.DynamicStubbingRegistry;
 import Mockframework.Dynamic.registry.InvocationKey;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class DynamicMockito {
     private static final DynamicStubbingRegistry REGISTRY = DynamicStubbingRegistry.getInstance();
 
@@ -24,14 +27,15 @@ public final class DynamicMockito {
         return new OngoingStubbingImpl<>(key);
     }
 
-    // Сброс всех моков (очистка реестра)
+    // Сброс всех моков
     public static void reset() {
         REGISTRY.reset();
     }
 
-    // Реализация OngoingStubbing
+    // Реализация OngoingStubbing с поддержкой цепочек
     private static final class OngoingStubbingImpl<R> implements DynamicOngoingStubbing<R> {
         private final InvocationKey key;
+        private final List<Answer> answers = new ArrayList<>();
 
         private OngoingStubbingImpl(InvocationKey key) {
             this.key = key;
@@ -39,20 +43,32 @@ public final class DynamicMockito {
 
         @Override
         public DynamicOngoingStubbing<R> thenReturn(R value) {
-            REGISTRY.addStub(key, args -> value);
+            answers.add(args -> value);
+            updateStub();
             return this;
         }
 
         @Override
         public DynamicOngoingStubbing<R> thenThrow(Throwable throwable) {
-            REGISTRY.addStub(key, args -> { throw throwable; });
+            answers.add(args -> { throw throwable; });
+            updateStub();
             return this;
         }
 
         @Override
         public DynamicOngoingStubbing<R> thenAnswer(Answer answer) {
-            REGISTRY.addStub(key, answer);
+            answers.add(answer);
+            updateStub();
             return this;
+        }
+
+        private void updateStub() {
+            if (answers.size() == 1) {
+                REGISTRY.addStub(key, answers.get(0));
+            } else {
+                // При множественных ответах оборачиваем их в ChainedAnswer
+                REGISTRY.addStub(key, new ChainedAnswer(new ArrayList<>(answers)));
+            }
         }
     }
 }
