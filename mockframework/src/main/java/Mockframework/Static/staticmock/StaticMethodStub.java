@@ -22,12 +22,12 @@ public final class StaticMethodStub {
     ) throws Throwable {
         String methodSignature = methodSignature(method);
         if (StaticMockManager.isStubbingInProgress()) {
-            StaticMockManager.captureInvocation(method.getDeclaringClass(), methodSignature);
+            StaticMockManager.captureInvocation(method.getDeclaringClass(), methodSignature, args);
             return defaultValue(method.getReturnType());
         }
 
         Answer answer = StaticMockManager
-            .findMock(method.getDeclaringClass(), methodSignature)
+            .findMock(method.getDeclaringClass(), methodSignature, args)
             .orElse(null);
         if (answer != null) {
             return answer.answer(args);

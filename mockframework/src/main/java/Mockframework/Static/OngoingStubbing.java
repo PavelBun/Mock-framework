@@ -3,10 +3,9 @@ package Mockframework.Static;
 import Mockframework.Core.Answer;
 
 public interface OngoingStubbing<R> {
-    void thenReturn(R value);
+    OngoingStubbing<R> thenReturn(R value);
 
-    void thenThrow(Throwable throwable);
+    OngoingStubbing<R> thenThrow(Throwable throwable);
 
-    void thenAnswer(Answer answer);
+    OngoingStubbing<R> thenAnswer(Answer answer);
 }
-

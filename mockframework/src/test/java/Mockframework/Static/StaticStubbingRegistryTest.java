@@ -33,6 +33,69 @@ class StaticStubbingRegistryTest {
         }
     }
 
+    @Test
+    void shouldMatchStaticStubsByArguments() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value("x")).thenReturn("stub-x");
+
+            assertEquals("stub-x", TestStaticMethods.value("x"));
+            assertEquals("real-y", TestStaticMethods.value("y"));
+        }
+    }
+
+    @Test
+    void shouldSupportChainedThenReturnForStaticMethod() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(TestStaticMethods::number).thenReturn(10L).thenReturn(20L);
+
+            assertEquals(10L, TestStaticMethods.number());
+            assertEquals(20L, TestStaticMethods.number());
+            assertEquals(20L, TestStaticMethods.number());
+        }
+    }
+
+    @Test
+    void shouldSupportChainedThenThrowForStaticMethod() {
+        IllegalStateException first = new IllegalStateException("first");
+        IllegalArgumentException second = new IllegalArgumentException("second");
+
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(TestStaticMethods::number).thenThrow(first).thenThrow(second);
+
+            assertSame(first, assertThrows(IllegalStateException.class, TestStaticMethods::number));
+            assertSame(second, assertThrows(IllegalArgumentException.class, TestStaticMethods::number));
+            assertSame(second, assertThrows(IllegalArgumentException.class, TestStaticMethods::number));
+        }
+    }
+
+    @Test
+    void shouldSupportChainedThenAnswerForStaticMethod() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value("x"))
+                .thenAnswer(args -> "first-" + args[0])
+                .thenAnswer(args -> "second-" + args[0]);
+
+            assertEquals("first-x", TestStaticMethods.value("x"));
+            assertEquals("second-x", TestStaticMethods.value("x"));
+            assertEquals("second-x", TestStaticMethods.value("x"));
+        }
+    }
+
+    @Test
+    void shouldKeepSeparateChainsForDifferentStaticArguments() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value("x")).thenReturn("x1").thenReturn("x2");
+            mocked.when(() -> TestStaticMethods.value("y")).thenReturn("y1").thenReturn("y2");
+
+            assertEquals("x1", TestStaticMethods.value("x"));
+            assertEquals("y1", TestStaticMethods.value("y"));
+            assertEquals("x2", TestStaticMethods.value("x"));
+            assertEquals("y2", TestStaticMethods.value("y"));
+            assertEquals("x2", TestStaticMethods.value("x"));
+            assertEquals("y2", TestStaticMethods.value("y"));
+        }
+    }
+
     static final class TestStaticMethods {
         private TestStaticMethods() {
         }
@@ -50,4 +113,3 @@ class StaticStubbingRegistryTest {
         }
     }
 }
-

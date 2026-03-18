@@ -1,7 +1,7 @@
 package Mockframework.Static.staticmock;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import Mockframework.Static.MockedStatic;
@@ -11,7 +11,7 @@ import Mockframework.Core.Answer;
 
 public final class MockedStaticImpl<T> implements MockedStatic<T> {
     private final Class<T> clazz;
-    private final Map<String, Answer> registeredAnswers = new HashMap<>();
+    private final List<RegisteredAnswer> registeredAnswers = new ArrayList<>();
     private boolean closed;
 
     public MockedStaticImpl(Class<T> clazz) {
@@ -26,8 +26,8 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
         String resolvedSignature = InvocationSignatureResolver
             .resolve(clazz, invocation)
             .orElse(null);
-        if (resolvedSignature != null) {
-            return new OngoingStubbingImpl<>(resolvedSignature);
+        if (resolvedSignature != null && isNoArgsSignature(resolvedSignature)) {
+            return new OngoingStubbingImpl<>(resolvedSignature, new Object[0]);
         }
 
         StaticMockManager.beginStubbing(clazz);
@@ -54,7 +54,7 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
             );
         }
 
-        return new OngoingStubbingImpl<>(capturedInvocation.methodSignature());
+        return new OngoingStubbingImpl<>(capturedInvocation.methodSignature(), capturedInvocation.args());
     }
 
     @Override
@@ -63,11 +63,20 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
             return;
         }
 
-        for (Map.Entry<String, Answer> entry : registeredAnswers.entrySet()) {
-            StaticMockManager.disableMock(clazz, entry.getKey(), entry.getValue());
+        for (RegisteredAnswer entry : registeredAnswers) {
+            StaticMockManager.disableMock(
+                clazz,
+                entry.methodSignature,
+                entry.args,
+                entry.answer
+            );
         }
         registeredAnswers.clear();
         closed = true;
+    }
+
+    private boolean isNoArgsSignature(String methodSignature) {
+        return methodSignature.endsWith("()");
     }
 
     private void ensureOpen() {
@@ -78,35 +87,75 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
 
     private final class OngoingStubbingImpl<R> implements OngoingStubbing<R> {
         private final String methodSignature;
+        private final Object[] invocationArgs;
+        private final List<Answer> answers = new ArrayList<>();
 
-        private OngoingStubbingImpl(String methodSignature) {
+        private OngoingStubbingImpl(String methodSignature, Object[] invocationArgs) {
             this.methodSignature = Objects.requireNonNull(
                 methodSignature,
                 "methodSignature must not be null"
             );
+            this.invocationArgs = invocationArgs != null ? invocationArgs.clone() : new Object[0];
         }
 
         @Override
-        public void thenReturn(R value) {
-            thenAnswer(args -> value);
+        public OngoingStubbing<R> thenReturn(R value) {
+            return thenAnswer(args -> value);
         }
 
         @Override
-        public void thenThrow(Throwable throwable) {
+        public OngoingStubbing<R> thenThrow(Throwable throwable) {
             Objects.requireNonNull(throwable, "throwable must not be null");
-            thenAnswer(args -> {
+            return thenAnswer(args -> {
                 throw throwable;
             });
         }
 
         @Override
-        public void thenAnswer(Answer answer) {
+        public OngoingStubbing<R> thenAnswer(Answer answer) {
             Objects.requireNonNull(answer, "answer must not be null");
             synchronized (MockedStaticImpl.this) {
                 ensureOpen();
-                StaticMockManager.enableMock(clazz, methodSignature, answer);
-                registeredAnswers.put(methodSignature, answer);
+                answers.add(answer);
+                Answer effectiveAnswer = answers.size() == 1
+                    ? answers.get(0)
+                    : new ChainedStaticAnswer(new ArrayList<>(answers));
+
+                StaticMockManager.enableMock(clazz, methodSignature, invocationArgs, effectiveAnswer);
+                registeredAnswers.add(new RegisteredAnswer(methodSignature, invocationArgs, effectiveAnswer));
             }
+            return this;
+        }
+    }
+
+    private static final class RegisteredAnswer {
+        private final String methodSignature;
+        private final Object[] args;
+        private final Answer answer;
+
+        private RegisteredAnswer(String methodSignature, Object[] args, Answer answer) {
+            this.methodSignature = methodSignature;
+            this.args = args != null ? args.clone() : new Object[0];
+            this.answer = answer;
+        }
+    }
+
+    private static final class ChainedStaticAnswer implements Answer {
+        private final List<Answer> answers;
+        private int invocationCount;
+
+        private ChainedStaticAnswer(List<Answer> answers) {
+            this.answers = answers;
+        }
+
+        @Override
+        public Object answer(Object[] args) throws Throwable {
+            int index = invocationCount;
+            invocationCount++;
+            if (index >= answers.size()) {
+                index = answers.size() - 1;
+            }
+            return answers.get(index).answer(args);
         }
     }
 }

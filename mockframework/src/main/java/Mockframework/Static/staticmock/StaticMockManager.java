@@ -1,5 +1,6 @@
 package Mockframework.Static.staticmock;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -8,41 +9,51 @@ import java.util.Optional;
 import Mockframework.Core.Answer;
 
 public final class StaticMockManager {
-    private static final ThreadLocal<Map<MethodKey, Answer>> MOCKS =
+    private static final ThreadLocal<Map<MethodInvocationKey, Answer>> MOCKS =
         ThreadLocal.withInitial(HashMap::new);
     private static final ThreadLocal<StubbingContext> STUBBING = new ThreadLocal<>();
-    private static final String ANY_PARAMETERS_SUFFIX = "(*)";
 
     private StaticMockManager() {
     }
 
     public static void enableMock(Class<?> clazz, String methodSignature, Answer answer) {
-        MethodKey key = keyOf(clazz, methodSignature);
+        enableMock(clazz, methodSignature, new Object[0], answer);
+    }
+
+    public static void enableMock(Class<?> clazz, String methodSignature, Object[] args, Answer answer) {
+        MethodInvocationKey key = keyOf(clazz, methodSignature, args);
         MOCKS.get().put(key, Objects.requireNonNull(answer, "answer must not be null"));
     }
 
     public static void disableMock(Class<?> clazz, String methodSignature) {
-        MethodKey key = keyOf(clazz, methodSignature);
-        Map<MethodKey, Answer> state = MOCKS.get();
+        disableMock(clazz, methodSignature, new Object[0]);
+    }
+
+    public static void disableMock(Class<?> clazz, String methodSignature, Object[] args) {
+        MethodInvocationKey key = keyOf(clazz, methodSignature, args);
+        Map<MethodInvocationKey, Answer> state = MOCKS.get();
         state.remove(key);
         cleanupIfEmpty(state);
     }
 
     public static void disableMock(Class<?> clazz, String methodSignature, Answer answer) {
-        MethodKey key = keyOf(clazz, methodSignature);
-        Map<MethodKey, Answer> state = MOCKS.get();
+        disableMock(clazz, methodSignature, new Object[0], answer);
+    }
+
+    public static void disableMock(Class<?> clazz, String methodSignature, Object[] args, Answer answer) {
+        MethodInvocationKey key = keyOf(clazz, methodSignature, args);
+        Map<MethodInvocationKey, Answer> state = MOCKS.get();
         state.remove(key, Objects.requireNonNull(answer, "answer must not be null"));
         cleanupIfEmpty(state);
     }
 
     public static Optional<Answer> findMock(Class<?> clazz, String methodSignature) {
-        MethodKey key = keyOf(clazz, methodSignature);
-        Answer exact = MOCKS.get().get(key);
-        if (exact != null) {
-            return Optional.of(exact);
-        }
+        return findMock(clazz, methodSignature, new Object[0]);
+    }
 
-        return Optional.ofNullable(MOCKS.get().get(keyOf(clazz, wildcardSignature(methodSignature))));
+    public static Optional<Answer> findMock(Class<?> clazz, String methodSignature, Object[] args) {
+        MethodInvocationKey key = keyOf(clazz, methodSignature, args);
+        return Optional.ofNullable(MOCKS.get().get(key));
     }
 
     public static void clear() {
@@ -72,6 +83,10 @@ public final class StaticMockManager {
     }
 
     public static void captureInvocation(Class<?> clazz, String methodSignature) {
+        captureInvocation(clazz, methodSignature, new Object[0]);
+    }
+
+    public static void captureInvocation(Class<?> clazz, String methodSignature, Object[] args) {
         Objects.requireNonNull(clazz, "clazz must not be null");
         Objects.requireNonNull(methodSignature, "methodSignature must not be null");
 
@@ -87,36 +102,22 @@ public final class StaticMockManager {
             );
         }
 
-        context.capture(clazz, methodSignature);
+        context.capture(clazz, methodSignature, args);
     }
 
-    private static MethodKey keyOf(Class<?> clazz, String methodSignature) {
-        return new MethodKey(
+    private static MethodInvocationKey keyOf(Class<?> clazz, String methodSignature, Object[] args) {
+        return new MethodInvocationKey(
             Objects.requireNonNull(clazz, "clazz must not be null"),
-            normalizeSignature(Objects.requireNonNull(methodSignature, "methodSignature must not be null"))
+            Objects.requireNonNull(methodSignature, "methodSignature must not be null"),
+            cloneArgs(args)
         );
     }
 
-    private static String wildcardSignature(String methodSignature) {
-        String normalized = normalizeSignature(methodSignature);
-        if (normalized.endsWith(ANY_PARAMETERS_SUFFIX)) {
-            return normalized;
-        }
-        int index = normalized.indexOf('(');
-        if (index < 0) {
-            return normalized;
-        }
-        return normalized.substring(0, index) + ANY_PARAMETERS_SUFFIX;
+    private static Object[] cloneArgs(Object[] args) {
+        return args != null ? args.clone() : new Object[0];
     }
 
-    private static String normalizeSignature(String methodSignature) {
-        if (methodSignature.indexOf('(') >= 0) {
-            return methodSignature;
-        }
-        return methodSignature + ANY_PARAMETERS_SUFFIX;
-    }
-
-    private static void cleanupIfEmpty(Map<MethodKey, Answer> state) {
+    private static void cleanupIfEmpty(Map<MethodInvocationKey, Answer> state) {
         if (state.isEmpty()) {
             MOCKS.remove();
         }
@@ -138,21 +139,68 @@ public final class StaticMockManager {
             return invocation;
         }
 
-        private void capture(Class<?> clazz, String methodSignature) {
+        private void capture(Class<?> clazz, String methodSignature, Object[] args) {
             if (invocation != null) {
                 throw new IllegalStateException("Only one static invocation can be configured in when(...)");
             }
-            invocation = new CapturedInvocation(clazz, methodSignature);
+            invocation = new CapturedInvocation(clazz, methodSignature, args);
         }
     }
 
-    record CapturedInvocation(Class<?> clazz, String methodSignature) {
-        CapturedInvocation {
-            Objects.requireNonNull(clazz, "clazz must not be null");
-            Objects.requireNonNull(methodSignature, "methodSignature must not be null");
+    static final class CapturedInvocation {
+        private final Class<?> clazz;
+        private final String methodSignature;
+        private final Object[] args;
+
+        CapturedInvocation(Class<?> clazz, String methodSignature, Object[] args) {
+            this.clazz = Objects.requireNonNull(clazz, "clazz must not be null");
+            this.methodSignature = Objects.requireNonNull(methodSignature, "methodSignature must not be null");
+            this.args = cloneArgs(args);
+        }
+
+        Class<?> clazz() {
+            return clazz;
+        }
+
+        String methodSignature() {
+            return methodSignature;
+        }
+
+        Object[] args() {
+            return cloneArgs(args);
         }
     }
 
-    private record MethodKey(Class<?> clazz, String methodSignature) {
+    private static final class MethodInvocationKey {
+        private final Class<?> clazz;
+        private final String methodSignature;
+        private final Object[] args;
+
+        private MethodInvocationKey(Class<?> clazz, String methodSignature, Object[] args) {
+            this.clazz = clazz;
+            this.methodSignature = methodSignature;
+            this.args = args;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof MethodInvocationKey that)) {
+                return false;
+            }
+            return clazz.equals(that.clazz)
+                && methodSignature.equals(that.methodSignature)
+                && Arrays.deepEquals(args, that.args);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = clazz.hashCode();
+            result = 31 * result + methodSignature.hashCode();
+            result = 31 * result + Arrays.deepHashCode(args);
+            return result;
+        }
     }
 }
