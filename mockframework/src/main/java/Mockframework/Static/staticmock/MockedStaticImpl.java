@@ -8,6 +8,7 @@ import Mockframework.Static.MockedStatic;
 import Mockframework.Static.OngoingStubbing;
 import Mockframework.Static.StaticInvocation;
 import Mockframework.Core.Answer;
+import Mockframework.Core.matcher.ArgumentMatcher;
 
 public final class MockedStaticImpl<T> implements MockedStatic<T> {
     private final Class<T> clazz;
@@ -27,7 +28,13 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
             .resolve(clazz, invocation)
             .orElse(null);
         if (resolvedSignature != null && isNoArgsSignature(resolvedSignature)) {
-            return new OngoingStubbingImpl<>(resolvedSignature, new Object[0]);
+            List<ArgumentMatcher> argumentMatchers = StaticMockManager.consumeMatchers();
+            if (!argumentMatchers.isEmpty()) {
+                throw new IllegalStateException(
+                    "Invalid matcher usage: no-arg static method cannot use argument matchers"
+                );
+            }
+            return new OngoingStubbingImpl<>(resolvedSignature, new Object[0], null);
         }
 
         StaticMockManager.beginStubbing(clazz);
@@ -39,6 +46,7 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
         }
 
         StaticMockManager.CapturedInvocation capturedInvocation = StaticMockManager.finishStubbing();
+        List<ArgumentMatcher> argumentMatchers = StaticMockManager.consumeMatchers();
         if (capturedInvocation == null) {
             String message = "No static invocation was captured in when(...) for " + clazz.getName();
             if (invocationFailure != null) {
@@ -54,7 +62,18 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
             );
         }
 
-        return new OngoingStubbingImpl<>(capturedInvocation.methodSignature(), capturedInvocation.args());
+        if (!argumentMatchers.isEmpty() && argumentMatchers.size() != capturedInvocation.args().length) {
+            throw new IllegalStateException(
+                "Invalid matcher usage: expected " + capturedInvocation.args().length +
+                    " matchers but got " + argumentMatchers.size()
+            );
+        }
+
+        return new OngoingStubbingImpl<>(
+            capturedInvocation.methodSignature(),
+            capturedInvocation.args(),
+            argumentMatchers.isEmpty() ? null : argumentMatchers
+        );
     }
 
     @Override
@@ -64,12 +83,21 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
         }
 
         for (RegisteredAnswer entry : registeredAnswers) {
-            StaticMockManager.disableMock(
-                clazz,
-                entry.methodSignature,
-                entry.args,
-                entry.answer
-            );
+            if (entry.argumentMatchers == null) {
+                StaticMockManager.disableMock(
+                    clazz,
+                    entry.methodSignature,
+                    entry.args,
+                    entry.answer
+                );
+            } else {
+                StaticMockManager.disableMatcherMock(
+                    clazz,
+                    entry.methodSignature,
+                    entry.argumentMatchers,
+                    entry.answer
+                );
+            }
         }
         registeredAnswers.clear();
         closed = true;
@@ -88,14 +116,20 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
     private final class OngoingStubbingImpl<R> implements OngoingStubbing<R> {
         private final String methodSignature;
         private final Object[] invocationArgs;
+        private final List<ArgumentMatcher> argumentMatchers;
         private final List<Answer> answers = new ArrayList<>();
 
-        private OngoingStubbingImpl(String methodSignature, Object[] invocationArgs) {
+        private OngoingStubbingImpl(
+            String methodSignature,
+            Object[] invocationArgs,
+            List<ArgumentMatcher> argumentMatchers
+        ) {
             this.methodSignature = Objects.requireNonNull(
                 methodSignature,
                 "methodSignature must not be null"
             );
             this.invocationArgs = invocationArgs != null ? invocationArgs.clone() : new Object[0];
+            this.argumentMatchers = argumentMatchers != null ? List.copyOf(argumentMatchers) : null;
         }
 
         @Override
@@ -121,8 +155,14 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
                     ? answers.get(0)
                     : new ChainedStaticAnswer(new ArrayList<>(answers));
 
-                StaticMockManager.enableMock(clazz, methodSignature, invocationArgs, effectiveAnswer);
-                registeredAnswers.add(new RegisteredAnswer(methodSignature, invocationArgs, effectiveAnswer));
+                if (argumentMatchers == null) {
+                    StaticMockManager.enableMock(clazz, methodSignature, invocationArgs, effectiveAnswer);
+                } else {
+                    StaticMockManager.enableMatcherMock(clazz, methodSignature, argumentMatchers, effectiveAnswer);
+                }
+                registeredAnswers.add(
+                    new RegisteredAnswer(methodSignature, invocationArgs, argumentMatchers, effectiveAnswer)
+                );
             }
             return this;
         }
@@ -131,11 +171,18 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
     private static final class RegisteredAnswer {
         private final String methodSignature;
         private final Object[] args;
+        private final List<ArgumentMatcher> argumentMatchers;
         private final Answer answer;
 
-        private RegisteredAnswer(String methodSignature, Object[] args, Answer answer) {
+        private RegisteredAnswer(
+            String methodSignature,
+            Object[] args,
+            List<ArgumentMatcher> argumentMatchers,
+            Answer answer
+        ) {
             this.methodSignature = methodSignature;
             this.args = args != null ? args.clone() : new Object[0];
+            this.argumentMatchers = argumentMatchers != null ? List.copyOf(argumentMatchers) : null;
             this.answer = answer;
         }
     }

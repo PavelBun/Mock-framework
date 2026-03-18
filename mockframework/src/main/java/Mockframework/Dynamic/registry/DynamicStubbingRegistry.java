@@ -1,15 +1,24 @@
 package Mockframework.Dynamic.registry;
 
 import Mockframework.Core.Answer;
+import Mockframework.Core.matcher.ArgumentMatcher;
 
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class DynamicStubbingRegistry {
     private static final DynamicStubbingRegistry INSTANCE = new DynamicStubbingRegistry();
 
     private final Map<InvocationKey, Answer> stubs = new ConcurrentHashMap<>();
+    private final CopyOnWriteArrayList<MatcherStub> matcherStubs = new CopyOnWriteArrayList<>();
     private final ThreadLocal<InvocationKey> lastInvocation = new ThreadLocal<>();
+    private final ThreadLocal<List<ArgumentMatcher>> pendingMatchers =
+        ThreadLocal.withInitial(ArrayList::new);
 
     private DynamicStubbingRegistry() {}
 
@@ -31,12 +40,94 @@ public final class DynamicStubbingRegistry {
         stubs.put(key, answer);
     }
 
+    public void addMatcherStub(InvocationKey key, List<ArgumentMatcher> argumentMatchers, Answer answer) {
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(argumentMatchers, "argumentMatchers");
+        Objects.requireNonNull(answer, "answer");
+        MatcherStub newStub = MatcherStub.create(key, argumentMatchers, answer);
+        matcherStubs.removeIf(existing -> existing.hasSamePattern(newStub));
+        matcherStubs.add(newStub);
+    }
+
     public Answer getStub(InvocationKey key) {
-        return stubs.get(key);
+        Answer exact = stubs.get(key);
+        if (exact != null) {
+            return exact;
+        }
+        for (int i = matcherStubs.size() - 1; i >= 0; i--) {
+            MatcherStub matcherStub = matcherStubs.get(i);
+            if (matcherStub.matches(key)) {
+                return matcherStub.answer;
+            }
+        }
+        return null;
+    }
+
+    public void registerMatcher(ArgumentMatcher matcher) {
+        pendingMatchers.get().add(Objects.requireNonNull(matcher, "matcher"));
+    }
+
+    public List<ArgumentMatcher> consumeMatchers() {
+        List<ArgumentMatcher> current = pendingMatchers.get();
+        if (current.isEmpty()) {
+            pendingMatchers.remove();
+            return List.of();
+        }
+        List<ArgumentMatcher> copy = List.copyOf(current);
+        pendingMatchers.remove();
+        return copy;
     }
 
     public void reset() {
         stubs.clear();
+        matcherStubs.clear();
         lastInvocation.remove();
+        pendingMatchers.remove();
+    }
+
+    private static final class MatcherStub {
+        private final Object mock;
+        private final Method method;
+        private final List<ArgumentMatcher> matchers;
+        private final Answer answer;
+
+        private MatcherStub(Object mock, Method method, List<ArgumentMatcher> matchers, Answer answer) {
+            this.mock = mock;
+            this.method = method;
+            this.matchers = matchers;
+            this.answer = answer;
+        }
+
+        private static MatcherStub create(InvocationKey key, List<ArgumentMatcher> matchers, Answer answer) {
+            return new MatcherStub(
+                key.getMock(),
+                key.getMethod(),
+                List.copyOf(matchers),
+                answer
+            );
+        }
+
+        private boolean hasSamePattern(MatcherStub other) {
+            return mock == other.mock
+                && method.equals(other.method)
+                && matchers.equals(other.matchers);
+        }
+
+        private boolean matches(InvocationKey key) {
+            if (mock != key.getMock() || !method.equals(key.getMethod())) {
+                return false;
+            }
+
+            Object[] args = key.getArgs();
+            if (args.length != matchers.size()) {
+                return false;
+            }
+            for (int i = 0; i < args.length; i++) {
+                if (!matchers.get(i).matches(args[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 }
