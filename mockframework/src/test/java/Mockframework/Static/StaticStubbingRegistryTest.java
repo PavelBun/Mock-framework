@@ -96,6 +96,36 @@ class StaticStubbingRegistryTest {
         }
     }
 
+    @Test
+    void shouldSupportAnyMatcherForStaticMethod() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value(Mockito.any())).thenReturn("any-match");
+
+            assertEquals("any-match", TestStaticMethods.value("alpha"));
+            assertEquals("any-match", TestStaticMethods.value("beta"));
+        }
+    }
+
+    @Test
+    void shouldSupportEqMatcherForStaticMethod() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value(Mockito.eq("admin"))).thenReturn("eq-match");
+
+            assertEquals("eq-match", TestStaticMethods.value("admin"));
+            assertEquals("real-user", TestStaticMethods.value("user"));
+        }
+    }
+
+    @Test
+    void shouldSupportContainsMatcherForStaticMethod() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value(Mockito.contains("adm"))).thenReturn("contains-match");
+
+            assertEquals("contains-match", TestStaticMethods.value("super-admin"));
+            assertEquals("real-guest", TestStaticMethods.value("guest"));
+        }
+    }
+
     static final class TestStaticMethods {
         private TestStaticMethods() {
         }

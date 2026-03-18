@@ -22,6 +22,9 @@ class DynamicMockTest {
     @Mock
     private Map<String, Integer> mockedMap;
 
+    @Mock
+    private TextService textService;
+
     @BeforeEach
     void setUp() {
         MockInitializer.initMocks(this);
@@ -75,6 +78,10 @@ class DynamicMockTest {
         public String getMessage() {
             return "real";
         }
+    }
+
+    interface TextService {
+        String normalize(String value);
     }
 
     @Test
@@ -172,5 +179,26 @@ class DynamicMockTest {
         assertEquals("return", mockedList.get(0));
         assertEquals("answer", mockedList.get(0));
         assertEquals("answer", mockedList.get(0));
+    }
+
+    @Test
+    void shouldSupportAnyMatcher() {
+        DynamicMockito.when(mockedMap.get(DynamicMockito.any())).thenReturn(111);
+        assertEquals(111, mockedMap.get("alpha"));
+        assertEquals(111, mockedMap.get("beta"));
+    }
+
+    @Test
+    void shouldSupportEqMatcher() {
+        DynamicMockito.when(mockedMap.get(DynamicMockito.eq("target"))).thenReturn(222);
+        assertEquals(222, mockedMap.get("target"));
+        assertNull(mockedMap.get("other"));
+    }
+
+    @Test
+    void shouldSupportContainsMatcher() {
+        DynamicMockito.when(textService.normalize(DynamicMockito.contains("adm"))).thenReturn("admin");
+        assertEquals("admin", textService.normalize("super-admin"));
+        assertNull(textService.normalize("guest"));
     }
 }

@@ -1,16 +1,23 @@
 package Mockframework.Static.staticmock;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 import Mockframework.Core.Answer;
+import Mockframework.Core.matcher.ArgumentMatcher;
 
 public final class StaticMockManager {
     private static final ThreadLocal<Map<MethodInvocationKey, Answer>> MOCKS =
         ThreadLocal.withInitial(HashMap::new);
+    private static final ThreadLocal<List<MatcherMethodStub>> MATCHER_MOCKS =
+        ThreadLocal.withInitial(ArrayList::new);
+    private static final ThreadLocal<List<ArgumentMatcher>> PENDING_MATCHERS =
+        ThreadLocal.withInitial(ArrayList::new);
     private static final ThreadLocal<StubbingContext> STUBBING = new ThreadLocal<>();
 
     private StaticMockManager() {
@@ -23,6 +30,18 @@ public final class StaticMockManager {
     public static void enableMock(Class<?> clazz, String methodSignature, Object[] args, Answer answer) {
         MethodInvocationKey key = keyOf(clazz, methodSignature, args);
         MOCKS.get().put(key, Objects.requireNonNull(answer, "answer must not be null"));
+    }
+
+    public static void enableMatcherMock(
+        Class<?> clazz,
+        String methodSignature,
+        List<ArgumentMatcher> argumentMatchers,
+        Answer answer
+    ) {
+        MatcherMethodStub newStub = MatcherMethodStub.create(clazz, methodSignature, argumentMatchers, answer);
+        List<MatcherMethodStub> state = MATCHER_MOCKS.get();
+        state.removeIf(existing -> existing.hasSamePattern(newStub));
+        state.add(newStub);
     }
 
     public static void disableMock(Class<?> clazz, String methodSignature) {
@@ -47,18 +66,61 @@ public final class StaticMockManager {
         cleanupIfEmpty(state);
     }
 
+    public static void disableMatcherMock(
+        Class<?> clazz,
+        String methodSignature,
+        List<ArgumentMatcher> argumentMatchers,
+        Answer answer
+    ) {
+        List<MatcherMethodStub> state = MATCHER_MOCKS.get();
+        state.removeIf(stub ->
+            stub.hasSamePattern(clazz, methodSignature, argumentMatchers)
+                && stub.hasAnswer(answer)
+        );
+        cleanupMatcherStateIfEmpty(state);
+    }
+
     public static Optional<Answer> findMock(Class<?> clazz, String methodSignature) {
         return findMock(clazz, methodSignature, new Object[0]);
     }
 
     public static Optional<Answer> findMock(Class<?> clazz, String methodSignature, Object[] args) {
         MethodInvocationKey key = keyOf(clazz, methodSignature, args);
-        return Optional.ofNullable(MOCKS.get().get(key));
+        Answer exact = MOCKS.get().get(key);
+        if (exact != null) {
+            return Optional.of(exact);
+        }
+
+        List<MatcherMethodStub> matcherStubs = MATCHER_MOCKS.get();
+        for (int i = matcherStubs.size() - 1; i >= 0; i--) {
+            MatcherMethodStub stub = matcherStubs.get(i);
+            if (stub.matches(clazz, methodSignature, args)) {
+                return Optional.of(stub.answer);
+            }
+        }
+        return Optional.empty();
     }
 
     public static void clear() {
         MOCKS.remove();
+        MATCHER_MOCKS.remove();
+        PENDING_MATCHERS.remove();
         STUBBING.remove();
+    }
+
+    public static void registerMatcher(ArgumentMatcher matcher) {
+        PENDING_MATCHERS.get().add(Objects.requireNonNull(matcher, "matcher must not be null"));
+    }
+
+    public static List<ArgumentMatcher> consumeMatchers() {
+        List<ArgumentMatcher> matchers = PENDING_MATCHERS.get();
+        if (matchers.isEmpty()) {
+            PENDING_MATCHERS.remove();
+            return List.of();
+        }
+        List<ArgumentMatcher> copy = List.copyOf(matchers);
+        PENDING_MATCHERS.remove();
+        return copy;
     }
 
     static void beginStubbing(Class<?> expectedClass) {
@@ -120,6 +182,12 @@ public final class StaticMockManager {
     private static void cleanupIfEmpty(Map<MethodInvocationKey, Answer> state) {
         if (state.isEmpty()) {
             MOCKS.remove();
+        }
+    }
+
+    private static void cleanupMatcherStateIfEmpty(List<MatcherMethodStub> state) {
+        if (state.isEmpty()) {
+            MATCHER_MOCKS.remove();
         }
     }
 
@@ -201,6 +269,75 @@ public final class StaticMockManager {
             result = 31 * result + methodSignature.hashCode();
             result = 31 * result + Arrays.deepHashCode(args);
             return result;
+        }
+    }
+
+    private static final class MatcherMethodStub {
+        private final Class<?> clazz;
+        private final String methodSignature;
+        private final List<ArgumentMatcher> argumentMatchers;
+        private final Answer answer;
+
+        private MatcherMethodStub(
+            Class<?> clazz,
+            String methodSignature,
+            List<ArgumentMatcher> argumentMatchers,
+            Answer answer
+        ) {
+            this.clazz = clazz;
+            this.methodSignature = methodSignature;
+            this.argumentMatchers = argumentMatchers;
+            this.answer = answer;
+        }
+
+        private static MatcherMethodStub create(
+            Class<?> clazz,
+            String methodSignature,
+            List<ArgumentMatcher> argumentMatchers,
+            Answer answer
+        ) {
+            return new MatcherMethodStub(
+                Objects.requireNonNull(clazz, "clazz must not be null"),
+                Objects.requireNonNull(methodSignature, "methodSignature must not be null"),
+                List.copyOf(Objects.requireNonNull(argumentMatchers, "argumentMatchers must not be null")),
+                Objects.requireNonNull(answer, "answer must not be null")
+            );
+        }
+
+        private boolean hasSamePattern(MatcherMethodStub other) {
+            return clazz.equals(other.clazz)
+                && methodSignature.equals(other.methodSignature)
+                && argumentMatchers.equals(other.argumentMatchers);
+        }
+
+        private boolean hasSamePattern(
+            Class<?> expectedClass,
+            String expectedMethodSignature,
+            List<ArgumentMatcher> expectedMatchers
+        ) {
+            return clazz.equals(expectedClass)
+                && methodSignature.equals(expectedMethodSignature)
+                && argumentMatchers.equals(expectedMatchers);
+        }
+
+        private boolean hasAnswer(Answer expectedAnswer) {
+            return answer == expectedAnswer;
+        }
+
+        private boolean matches(Class<?> invocationClass, String invocationSignature, Object[] invocationArgs) {
+            if (!clazz.equals(invocationClass) || !methodSignature.equals(invocationSignature)) {
+                return false;
+            }
+            if (invocationArgs.length != argumentMatchers.size()) {
+                return false;
+            }
+
+            for (int i = 0; i < invocationArgs.length; i++) {
+                if (!argumentMatchers.get(i).matches(invocationArgs[i])) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }
