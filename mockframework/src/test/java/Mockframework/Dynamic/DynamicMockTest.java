@@ -25,6 +25,9 @@ class DynamicMockTest {
     @Mock
     private TextService textService;
 
+    @Mock
+    private MultiArgService multiArgService;
+
     @BeforeEach
     void setUp() {
         MockInitializer.initMocks(this);
@@ -82,6 +85,10 @@ class DynamicMockTest {
 
     interface TextService {
         String normalize(String value);
+    }
+
+    interface MultiArgService {
+        String join(String left, String right);
     }
 
     @Test
@@ -200,5 +207,53 @@ class DynamicMockTest {
         DynamicMockito.when(textService.normalize(DynamicMockito.contains("adm"))).thenReturn("admin");
         assertEquals("admin", textService.normalize("super-admin"));
         assertNull(textService.normalize("guest"));
+    }
+
+    @Test
+    void shouldPreferExactStubOverMatcher() {
+        DynamicMockito.when(mockedMap.get(DynamicMockito.any())).thenReturn(111);
+        DynamicMockito.when(mockedMap.get("target")).thenReturn(222);
+
+        assertEquals(222, mockedMap.get("target"));
+        assertEquals(111, mockedMap.get("other"));
+    }
+
+    @Test
+    void shouldSupportEqNullMatcher() {
+        DynamicMockito.when(textService.normalize(DynamicMockito.eq(null))).thenReturn("null-value");
+
+        assertEquals("null-value", textService.normalize(null));
+        assertNull(textService.normalize("something"));
+    }
+
+    @Test
+    void shouldClearMatcherStubAfterReset() {
+        DynamicMockito.when(mockedMap.get(DynamicMockito.any())).thenReturn(777);
+        assertEquals(777, mockedMap.get("before-reset"));
+
+        DynamicMockito.reset();
+
+        assertNull(mockedMap.get("after-reset"));
+    }
+
+    @Test
+    void shouldFailWhenMatchersCountDoesNotMatchArguments() {
+        IllegalStateException error = assertThrows(
+            IllegalStateException.class,
+            () -> DynamicMockito.when(multiArgService.join(DynamicMockito.any(), "raw")).thenReturn("x")
+        );
+        assertTrue(error.getMessage().contains("expected 2 matchers but got 1"));
+    }
+
+    @Test
+    void shouldNotLeakPendingMatchersAfterInvalidUsage() {
+        DynamicMockito.any();
+        assertThrows(
+            IllegalStateException.class,
+            () -> DynamicMockito.when(mockedList.isEmpty()).thenReturn(true)
+        );
+
+        DynamicMockito.when(mockedList.isEmpty()).thenReturn(false);
+        assertFalse(mockedList.isEmpty());
     }
 }

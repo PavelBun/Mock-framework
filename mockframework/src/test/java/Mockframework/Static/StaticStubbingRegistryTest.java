@@ -2,8 +2,12 @@ package Mockframework.Static;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class StaticStubbingRegistryTest {
@@ -126,6 +130,64 @@ class StaticStubbingRegistryTest {
         }
     }
 
+    @Test
+    void shouldPreferExactStaticStubOverMatcherStub() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value(Mockito.any())).thenReturn("any");
+            mocked.when(() -> TestStaticMethods.value("target")).thenReturn("exact");
+
+            assertEquals("exact", TestStaticMethods.value("target"));
+            assertEquals("any", TestStaticMethods.value("other"));
+        }
+    }
+
+    @Test
+    void shouldSupportEqNullMatcherForStaticMethod() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value(Mockito.eq(null))).thenReturn("null-match");
+
+            assertEquals("null-match", TestStaticMethods.value(null));
+            assertEquals("real-user", TestStaticMethods.value("user"));
+        }
+    }
+
+    @Test
+    void shouldClearMatcherStubAfterClose() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value(Mockito.contains("adm"))).thenReturn("contains-match");
+            assertEquals("contains-match", TestStaticMethods.value("admin"));
+        }
+
+        assertEquals("real-admin", TestStaticMethods.value("admin"));
+    }
+
+    @Test
+    void shouldKeepMatcherStaticStubInCurrentThreadOnly() throws InterruptedException {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            mocked.when(() -> TestStaticMethods.value(Mockito.contains("adm"))).thenReturn("contains-match");
+            assertEquals("contains-match", TestStaticMethods.value("admin"));
+
+            AtomicReference<String> fromOtherThread = new AtomicReference<>("contains-match");
+            Thread thread = new Thread(() -> fromOtherThread.set(TestStaticMethods.value("admin")));
+            thread.start();
+            thread.join();
+
+            assertNotEquals("contains-match", fromOtherThread.get());
+            assertEquals("real-admin", fromOtherThread.get());
+        }
+    }
+
+    @Test
+    void shouldFailWhenMatcherCountDoesNotMatchStaticArguments() {
+        try (MockedStatic<TestStaticMethods> mocked = Mockito.mockStatic(TestStaticMethods.class)) {
+            IllegalStateException error = assertThrows(
+                IllegalStateException.class,
+                () -> mocked.when(() -> TestStaticMethods.pair(Mockito.any(), "raw")).thenReturn("x")
+            );
+            assertTrue(error.getMessage().contains("expected 2 matchers but got 1"));
+        }
+    }
+
     static final class TestStaticMethods {
         private TestStaticMethods() {
         }
@@ -140,6 +202,10 @@ class StaticStubbingRegistryTest {
 
         static long number() {
             return 1L;
+        }
+
+        static String pair(String left, String right) {
+            return "real-" + left + "-" + right;
         }
     }
 }

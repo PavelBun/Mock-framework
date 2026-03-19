@@ -11,7 +11,14 @@ public final class Mockito {
     }
 
     public static <T> MockedStatic<T> mockStatic(Class<T> clazz) {
-        return new MockedStaticImpl<>(Objects.requireNonNull(clazz, "clazz must not be null"));
+        Class<T> targetClass = Objects.requireNonNull(clazz, "clazz must not be null");
+        String className = targetClass.getName();
+        if (className.startsWith("java.") || className.startsWith("jdk.") || className.startsWith("sun.")) {
+            throw new UnsupportedOperationException(
+                "Mocking core Java classes is not supported: " + className
+            );
+        }
+        return new MockedStaticImpl<>(targetClass);
     }
 
     public static <T> T any() {

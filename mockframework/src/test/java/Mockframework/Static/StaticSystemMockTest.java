@@ -1,46 +1,30 @@
 package Mockframework.Static;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Disabled;
 
-import java.util.concurrent.atomic.AtomicLong;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StaticSystemMockTest {
-    @Disabled("System.currentTimeMillis() is JVM intrinsic/native and not interceptable with current agent approach.")
     @Test
-    void shouldReturnStubbedCurrentTimeMillis() {
-        long fixedValue = Long.MIN_VALUE + 42;
-
-        try (MockedStatic<System> mocked = Mockito.mockStatic(System.class)) {
-            mocked.when(System::currentTimeMillis).thenReturn(fixedValue);
-
-            long actual = System.currentTimeMillis();
-
-            assertEquals(fixedValue, actual);
-        }
-
-        assertNotEquals(fixedValue, System.currentTimeMillis());
+    void shouldRejectMockingCoreJavaClass() {
+        UnsupportedOperationException error = assertThrows(
+            UnsupportedOperationException.class,
+            () -> Mockito.mockStatic(System.class)
+        );
+        assertTrue(error.getMessage().contains("java.lang.System"));
     }
 
-    @Disabled("System.currentTimeMillis() is JVM intrinsic/native and not interceptable with current agent approach.")
     @Test
-    void shouldKeepStaticMockInCurrentThreadOnly() throws InterruptedException {
-        long fixedValue = Long.MIN_VALUE + 100;
-
-        try (MockedStatic<System> mocked = Mockito.mockStatic(System.class)) {
-            mocked.when(System::currentTimeMillis).thenReturn(fixedValue);
-
-            assertEquals(fixedValue, System.currentTimeMillis());
-
-            AtomicLong fromOtherThread = new AtomicLong(fixedValue);
-            Thread thread = new Thread(() -> fromOtherThread.set(System.currentTimeMillis()));
-            thread.start();
-            thread.join();
-
-            assertNotEquals(fixedValue, fromOtherThread.get());
-        }
+    void shouldRejectSystemCurrentTimeMillisStubbing() {
+        UnsupportedOperationException error = assertThrows(
+            UnsupportedOperationException.class,
+            () -> {
+                try (MockedStatic<System> ignored = Mockito.mockStatic(System.class)) {
+                    // no-op
+                }
+            }
+        );
+        assertTrue(error.getMessage().contains("core Java classes"));
     }
 }
