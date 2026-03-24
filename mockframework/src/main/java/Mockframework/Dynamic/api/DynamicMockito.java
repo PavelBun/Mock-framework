@@ -135,4 +135,14 @@ public final class DynamicMockito {
     public static VerificationMode atMost(int max) {
         return new AtMost(max);
     }
+    public static int anyInt() {
+        REGISTRY.registerMatcher(ArgumentMatchers.any());
+        return 0;
+    }
+
+    public static String anyString() {
+        REGISTRY.registerMatcher(ArgumentMatchers.any());
+        return "";
+    }
+
 }

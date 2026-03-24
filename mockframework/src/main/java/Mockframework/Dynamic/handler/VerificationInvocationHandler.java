@@ -7,8 +7,6 @@ import Mockframework.Dynamic.verification.VerificationMode;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class VerificationInvocationHandler implements InvocationHandler {
@@ -22,8 +20,6 @@ public class VerificationInvocationHandler implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        System.out.println("Verifying " + method.getName() + " with args " + Arrays.toString(args));
-
         if (method.getDeclaringClass() == Object.class) {
             String name = method.getName();
             if ("toString".equals(name)) {
@@ -36,18 +32,13 @@ public class VerificationInvocationHandler implements InvocationHandler {
             return null;
         }
 
-        // List<ArgumentMatcher> matchers = DynamicStubbingRegistry.getInstance().consumeMatchersForVerification();
-        List<ArgumentMatcher> matchers = Collections.emptyList();        InvocationKey expectedKey = new InvocationKey(mock, method, args);
-        List<InvocationKey> history = DynamicStubbingRegistry.getInstance().getHistory(mock);
-        System.out.println("History size: " + history.size());
+        // Получаем матчеры, зарегистрированные для этого вызова
+        List<ArgumentMatcher> matchers = DynamicStubbingRegistry.getInstance().consumeMatchersForVerification();
 
-        try {
-            mode.verify(history, expectedKey, matchers);
-        } catch (Throwable t) {
-            System.err.println("Error in verification: " + t);
-            t.printStackTrace();
-            throw t;
-        }
+        InvocationKey expectedKey = new InvocationKey(mock, method, args);
+        List<InvocationKey> history = DynamicStubbingRegistry.getInstance().getHistory(mock);
+
+        mode.verify(history, expectedKey, matchers);
         return defaultValue(method.getReturnType());
     }
 

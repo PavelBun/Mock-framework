@@ -36,8 +36,9 @@ public class VerificationInterceptor {
             return null;
         }
 
-        // List<ArgumentMatcher> matchers = DynamicStubbingRegistry.getInstance().consumeMatchersForVerification();
-        List<ArgumentMatcher> matchers = Collections.emptyList();        InvocationKey expectedKey = new InvocationKey(mock, method, args);
+        List<ArgumentMatcher> matchers = DynamicStubbingRegistry.getInstance().consumeMatchersForVerification();
+        //List<ArgumentMatcher> matchers = Collections.emptyList();
+        InvocationKey expectedKey = new InvocationKey(mock, method, args);
         List<InvocationKey> history = DynamicStubbingRegistry.getInstance().getHistory(mock);
         mode.verify(history, expectedKey, matchers);
         return defaultValue(method.getReturnType());

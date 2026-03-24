@@ -288,12 +288,11 @@ class DynamicMockTest {
         mockedList.get(0);
         DynamicMockito.verify(mockedList, DynamicMockito.atMost(1)).get(0);
     }
-    @Disabled("Will be fixed with typed matchers for verification")
     @Test
     void shouldVerifyWithAnyMatcher() {
         mockedList.get(10);
         mockedList.get(20);
-        DynamicMockito.verify(mockedList, DynamicMockito.times(2)).get(DynamicMockito.any());
+        DynamicMockito.verify(mockedList, DynamicMockito.times(2)).get(DynamicMockito.anyInt());
     }
 
     @Test
@@ -301,7 +300,6 @@ class DynamicMockTest {
         mockedList.get(42);
         DynamicMockito.verify(mockedList).get(DynamicMockito.eq(42));
     }
-    @Disabled("Requires further adjustment of contains matcher for verification")
     @Test
     void shouldVerifyWithContainsMatcher() {
         textService.normalize("admin");
