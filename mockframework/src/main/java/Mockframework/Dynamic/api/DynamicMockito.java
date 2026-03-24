@@ -4,8 +4,8 @@ import Mockframework.Core.Answer;
 import Mockframework.Core.matcher.ArgumentMatcher;
 import Mockframework.Core.matcher.ArgumentMatchers;
 import Mockframework.Dynamic.creator.DynamicMockCreator;
-import Mockframework.Dynamic.registry.DynamicStubbingRegistry;
-import Mockframework.Dynamic.registry.InvocationKey;
+import Mockframework.Dynamic.registry.*;
+import Mockframework.Dynamic.verification.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +42,7 @@ public final class DynamicMockito {
 
     // Сброс всех моков
     public static void reset() {
+        REGISTRY.clearHistory();
         REGISTRY.reset();
     }
 
@@ -109,5 +110,29 @@ public final class DynamicMockito {
                 REGISTRY.addMatcherStub(key, argumentMatchers, effectiveAnswer);
             }
         }
+    }
+
+    public static <T> T verify(T mock) {
+        return verify(mock, new Times(1));
+    }
+
+    public static <T> T verify(T mock, VerificationMode mode) {
+        return VerificationProxyCreator.createVerificationProxy(mock, mode);
+    }
+
+    public static VerificationMode times(int count) {
+        return new Times(count);
+    }
+
+    public static VerificationMode never() {
+        return new Times(0);
+    }
+
+    public static VerificationMode atLeast(int min) {
+        return new AtLeast(min);
+    }
+
+    public static VerificationMode atMost(int max) {
+        return new AtMost(max);
     }
 }

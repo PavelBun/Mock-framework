@@ -4,10 +4,7 @@ import Mockframework.Core.Answer;
 import Mockframework.Core.matcher.ArgumentMatcher;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -83,6 +80,7 @@ public final class DynamicStubbingRegistry {
         matcherStubs.clear();
         lastInvocation.remove();
         pendingMatchers.remove();
+        clearHistory();
     }
 
     private static final class MatcherStub {
@@ -129,5 +127,37 @@ public final class DynamicStubbingRegistry {
             }
             return true;
         }
+    }
+    // В начало класса, после других полей:
+    private final Map<Object, List<InvocationKey>> invocationHistory = new ConcurrentHashMap<>();
+
+    // В конце класса добавить методы:
+    public void recordInvocation(InvocationKey key) {
+        invocationHistory.computeIfAbsent(key.getMock(), k -> new CopyOnWriteArrayList<>()).add(key);
+    }
+
+    public List<InvocationKey> getHistory(Object mock) {
+        if (mock == null) {
+            System.out.println("History size: 0");
+            return Collections.emptyList();
+        }
+        List<InvocationKey> history = invocationHistory.getOrDefault(mock, Collections.emptyList());
+        System.out.println("History size: " + history.size());
+        return history;
+    }
+
+    public void clearHistory() {
+        invocationHistory.clear();
+    }
+
+    public List<ArgumentMatcher> consumeMatchersForVerification() {
+        List<ArgumentMatcher> current = pendingMatchers.get();
+        if (current.isEmpty()) {
+            pendingMatchers.remove();
+            return List.of();
+        }
+        List<ArgumentMatcher> copy = List.copyOf(current);
+        pendingMatchers.remove();
+        return copy;
     }
 }

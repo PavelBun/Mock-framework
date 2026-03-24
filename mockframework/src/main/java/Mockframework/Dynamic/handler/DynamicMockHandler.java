@@ -19,6 +19,8 @@ public final class DynamicMockHandler {
         // Сохраняем последний вызов для when()
         registry.recordLastInvocation(key);
 
+        registry.recordInvocation(key);
+
         // Ищем заглушку
         Answer answer = registry.getStub(key);
         if (answer != null) {
