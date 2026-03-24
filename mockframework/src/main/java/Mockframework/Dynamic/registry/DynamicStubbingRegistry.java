@@ -76,11 +76,9 @@ public final class DynamicStubbingRegistry {
     }
 
     public void reset() {
-        stubs.clear();
-        matcherStubs.clear();
-        lastInvocation.remove();
-        pendingMatchers.remove();
-        clearHistory();
+        stubs.clear();               // очищаем заглушки
+        lastInvocation.remove();     // очищаем ThreadLocal
+        invocationHistory.clear();   // если есть поле для истории вызовов
     }
 
     private static final class MatcherStub {

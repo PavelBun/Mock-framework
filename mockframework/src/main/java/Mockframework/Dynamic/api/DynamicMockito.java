@@ -42,6 +42,8 @@ public final class DynamicMockito {
 
     // Сброс всех моков
     public static void reset() {
+        // Очищаем историю вызовов (если она хранится в реестре)
+    // Очищаем заглушки
         REGISTRY.clearHistory();
         REGISTRY.reset();
     }
