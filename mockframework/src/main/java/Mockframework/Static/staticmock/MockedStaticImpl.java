@@ -9,6 +9,9 @@ import Mockframework.Static.OngoingStubbing;
 import Mockframework.Static.StaticInvocation;
 import Mockframework.Core.Answer;
 import Mockframework.Core.matcher.ArgumentMatcher;
+import Mockframework.Static.verification.StaticInvocationKey;
+import Mockframework.Static.verification.Times;
+import Mockframework.Static.verification.VerificationMode;
 
 public final class MockedStaticImpl<T> implements MockedStatic<T> {
     private final Class<T> clazz;
@@ -17,6 +20,7 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
 
     public MockedStaticImpl(Class<T> clazz) {
         this.clazz = Objects.requireNonNull(clazz, "clazz must not be null");
+        StaticMockManager.activateMock(this.clazz);
     }
 
     @Override
@@ -77,6 +81,76 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
     }
 
     @Override
+    public synchronized void verify(StaticInvocation<?> invocation) {
+        verify(invocation, new Times(1));
+    }
+
+    @Override
+    public synchronized void verify(StaticInvocation<?> invocation, VerificationMode mode) {
+        ensureOpen();
+        Objects.requireNonNull(invocation, "invocation must not be null");
+        Objects.requireNonNull(mode, "mode must not be null");
+
+        String resolvedSignature = InvocationSignatureResolver
+            .resolve(clazz, invocation)
+            .orElse(null);
+        if (resolvedSignature != null && isNoArgsSignature(resolvedSignature)) {
+            List<ArgumentMatcher> argumentMatchers = StaticMockManager.consumeMatchers();
+            if (!argumentMatchers.isEmpty()) {
+                throw new IllegalStateException(
+                    "Invalid matcher usage: no-arg static method cannot use argument matchers"
+                );
+            }
+            List<StaticInvocationKey> history = StaticMockManager.getInvocationHistory(clazz);
+            mode.verify(history, new StaticInvocationKey(clazz, resolvedSignature, new Object[0]), List.of());
+            return;
+        }
+
+        StaticMockManager.beginStubbing(clazz);
+        Throwable invocationFailure = null;
+        try {
+            invocation.invoke();
+        } catch (Throwable throwable) {
+            invocationFailure = throwable;
+        }
+
+        StaticMockManager.CapturedInvocation capturedInvocation = StaticMockManager.finishStubbing();
+        List<ArgumentMatcher> argumentMatchers = StaticMockManager.consumeMatchers();
+        if (capturedInvocation == null) {
+            String message = "No static invocation was captured in verify(...) for " + clazz.getName();
+            if (invocationFailure != null) {
+                throw new IllegalStateException(message, invocationFailure);
+            }
+            throw new IllegalStateException(message);
+        }
+
+        if (invocationFailure != null) {
+            throw new IllegalStateException(
+                "Failed to capture static invocation for " + clazz.getName(),
+                invocationFailure
+            );
+        }
+
+        if (!argumentMatchers.isEmpty() && argumentMatchers.size() != capturedInvocation.args().length) {
+            throw new IllegalStateException(
+                "Invalid matcher usage: expected " + capturedInvocation.args().length +
+                    " matchers but got " + argumentMatchers.size()
+            );
+        }
+
+        List<StaticInvocationKey> history = StaticMockManager.getInvocationHistory(clazz);
+        mode.verify(
+            history,
+            new StaticInvocationKey(
+                capturedInvocation.clazz(),
+                capturedInvocation.methodSignature(),
+                capturedInvocation.args()
+            ),
+            argumentMatchers
+        );
+    }
+
+    @Override
     public synchronized void close() {
         if (closed) {
             return;
@@ -101,6 +175,7 @@ public final class MockedStaticImpl<T> implements MockedStatic<T> {
         }
         registeredAnswers.clear();
         closed = true;
+        StaticMockManager.deactivateMock(clazz);
     }
 
     private boolean isNoArgsSignature(String methodSignature) {

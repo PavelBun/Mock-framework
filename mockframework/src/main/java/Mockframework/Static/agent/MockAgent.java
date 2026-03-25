@@ -30,6 +30,7 @@ public final class MockAgent {
                                 .or(ElementMatchers.nameStartsWith("Mockframework.Static.agent."))
                                 .or(ElementMatchers.nameStartsWith("Mockframework.Static.staticmock."))
                                 .or(ElementMatchers.nameStartsWith("Mockframework.Core."))
+                                .or(ElementMatchers.nameStartsWith("Mockframework.Dynamic."))
                                 .or(ElementMatchers.named("Mockframework.Static.Mockito"))
                                 .or(ElementMatchers.named("Mockframework.Static.MockedStatic"))
                                 .or(ElementMatchers.named("Mockframework.Static.OngoingStubbing"))

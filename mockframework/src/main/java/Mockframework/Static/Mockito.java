@@ -5,6 +5,10 @@ import java.util.Objects;
 import Mockframework.Core.matcher.ArgumentMatchers;
 import Mockframework.Static.staticmock.MockedStaticImpl;
 import Mockframework.Static.staticmock.StaticMockManager;
+import Mockframework.Static.verification.AtLeast;
+import Mockframework.Static.verification.AtMost;
+import Mockframework.Static.verification.Times;
+import Mockframework.Static.verification.VerificationMode;
 
 public final class Mockito {
     private Mockito() {
@@ -34,5 +38,21 @@ public final class Mockito {
     public static String contains(String value) {
         StaticMockManager.registerMatcher(ArgumentMatchers.contains(value));
         return value;
+    }
+
+    public static VerificationMode times(int count) {
+        return new Times(count);
+    }
+
+    public static VerificationMode never() {
+        return new Times(0);
+    }
+
+    public static VerificationMode atLeast(int min) {
+        return new AtLeast(min);
+    }
+
+    public static VerificationMode atMost(int max) {
+        return new AtMost(max);
     }
 }

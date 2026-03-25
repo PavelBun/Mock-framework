@@ -10,8 +10,8 @@ repositories {
 }
 
 dependencies {
-    implementation("net.bytebuddy:byte-buddy:1.14.19")
-    implementation("net.bytebuddy:byte-buddy-agent:1.14.19")
+    implementation("net.bytebuddy:byte-buddy:1.18.7")
+    implementation("net.bytebuddy:byte-buddy-agent:1.18.7")
 
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -35,6 +35,12 @@ tasks.test {
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = true
+    }
+}
+
+sourceSets {
+    test {
+        java.srcDir(file("../examples"))
     }
 }
 
