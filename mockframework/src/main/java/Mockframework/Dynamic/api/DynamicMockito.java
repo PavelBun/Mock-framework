@@ -22,11 +22,12 @@ public final class DynamicMockito {
 
     // Начало стаббинга
     public static <T> DynamicOngoingStubbing<T> when(T call) {
-        List<ArgumentMatcher> argumentMatchers = REGISTRY.consumeMatchers();
         InvocationKey key = REGISTRY.getLastInvocationAndClear();
         if (key == null) {
             throw new IllegalStateException("when() called without a previous mock invocation");
         }
+        REGISTRY.dropInvocationFromHistory(key);
+        List<ArgumentMatcher> argumentMatchers = REGISTRY.consumeMatchers();
         if (argumentMatchers.isEmpty()) {
             return new OngoingStubbingImpl<>(key, null);
         }

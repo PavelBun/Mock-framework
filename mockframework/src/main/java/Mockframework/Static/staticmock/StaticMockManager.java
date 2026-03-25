@@ -10,6 +10,7 @@ import java.util.Optional;
 
 import Mockframework.Core.Answer;
 import Mockframework.Core.matcher.ArgumentMatcher;
+import Mockframework.Static.verification.StaticInvocationKey;
 
 public final class StaticMockManager {
     private static final ThreadLocal<Map<MethodInvocationKey, Answer>> MOCKS =
@@ -19,6 +20,10 @@ public final class StaticMockManager {
     private static final ThreadLocal<List<ArgumentMatcher>> PENDING_MATCHERS =
         ThreadLocal.withInitial(ArrayList::new);
     private static final ThreadLocal<StubbingContext> STUBBING = new ThreadLocal<>();
+    private static final ThreadLocal<Map<Class<?>, List<StaticInvocationKey>>> INVOCATION_HISTORY =
+        ThreadLocal.withInitial(HashMap::new);
+    private static final ThreadLocal<Map<Class<?>, Integer>> ACTIVE_MOCKS =
+        ThreadLocal.withInitial(HashMap::new);
 
     private StaticMockManager() {
     }
@@ -80,6 +85,61 @@ public final class StaticMockManager {
         cleanupMatcherStateIfEmpty(state);
     }
 
+    public static void activateMock(Class<?> clazz) {
+        Objects.requireNonNull(clazz, "clazz must not be null");
+        Map<Class<?>, Integer> active = ACTIVE_MOCKS.get();
+        int count = active.getOrDefault(clazz, 0);
+        if (count == 0) {
+            clearHistory(clazz);
+        }
+        active.put(clazz, count + 1);
+    }
+
+    public static void deactivateMock(Class<?> clazz) {
+        Objects.requireNonNull(clazz, "clazz must not be null");
+        Map<Class<?>, Integer> active = ACTIVE_MOCKS.get();
+        Integer count = active.get(clazz);
+        if (count == null) {
+            return;
+        }
+        if (count <= 1) {
+            active.remove(clazz);
+            if (active.isEmpty()) {
+                ACTIVE_MOCKS.remove();
+            }
+            clearHistory(clazz);
+        } else {
+            active.put(clazz, count - 1);
+        }
+    }
+
+    public static boolean isMockActive(Class<?> clazz) {
+        Objects.requireNonNull(clazz, "clazz must not be null");
+        Map<Class<?>, Integer> active = ACTIVE_MOCKS.get();
+        return active.getOrDefault(clazz, 0) > 0;
+    }
+
+    public static void recordInvocation(Class<?> clazz, String methodSignature, Object[] args) {
+        Objects.requireNonNull(clazz, "clazz must not be null");
+        Objects.requireNonNull(methodSignature, "methodSignature must not be null");
+        if (!isMockActive(clazz)) {
+            return;
+        }
+        Map<Class<?>, List<StaticInvocationKey>> history = INVOCATION_HISTORY.get();
+        List<StaticInvocationKey> invocations = history.computeIfAbsent(clazz, key -> new ArrayList<>());
+        invocations.add(new StaticInvocationKey(clazz, methodSignature, args));
+    }
+
+    public static List<StaticInvocationKey> getInvocationHistory(Class<?> clazz) {
+        Objects.requireNonNull(clazz, "clazz must not be null");
+        Map<Class<?>, List<StaticInvocationKey>> history = INVOCATION_HISTORY.get();
+        List<StaticInvocationKey> invocations = history.get(clazz);
+        if (invocations == null || invocations.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(invocations);
+    }
+
     public static Optional<Answer> findMock(Class<?> clazz, String methodSignature) {
         return findMock(clazz, methodSignature, new Object[0]);
     }
@@ -106,6 +166,8 @@ public final class StaticMockManager {
         MATCHER_MOCKS.remove();
         PENDING_MATCHERS.remove();
         STUBBING.remove();
+        INVOCATION_HISTORY.remove();
+        ACTIVE_MOCKS.remove();
     }
 
     public static void registerMatcher(ArgumentMatcher matcher) {
@@ -188,6 +250,14 @@ public final class StaticMockManager {
     private static void cleanupMatcherStateIfEmpty(List<MatcherMethodStub> state) {
         if (state.isEmpty()) {
             MATCHER_MOCKS.remove();
+        }
+    }
+
+    private static void clearHistory(Class<?> clazz) {
+        Map<Class<?>, List<StaticInvocationKey>> history = INVOCATION_HISTORY.get();
+        history.remove(clazz);
+        if (history.isEmpty()) {
+            INVOCATION_HISTORY.remove();
         }
     }
 

@@ -26,6 +26,8 @@ public final class StaticMethodStub {
             return defaultValue(method.getReturnType());
         }
 
+        StaticMockManager.recordInvocation(method.getDeclaringClass(), methodSignature, args);
+
         Answer answer = StaticMockManager
             .findMock(method.getDeclaringClass(), methodSignature, args)
             .orElse(null);

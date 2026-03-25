@@ -76,9 +76,11 @@ public final class DynamicStubbingRegistry {
     }
 
     public void reset() {
-        stubs.clear();               // очищаем заглушки
-        lastInvocation.remove();     // очищаем ThreadLocal
-        invocationHistory.clear();   // если есть поле для истории вызовов
+        stubs.clear();
+        matcherStubs.clear();
+        lastInvocation.remove();
+        pendingMatchers.remove();
+        clearHistory();
     }
 
     private static final class MatcherStub {
@@ -146,6 +148,25 @@ public final class DynamicStubbingRegistry {
 
     public void clearHistory() {
         invocationHistory.clear();
+    }
+
+    public void dropInvocationFromHistory(InvocationKey key) {
+        if (key == null) {
+            return;
+        }
+        List<InvocationKey> history = invocationHistory.get(key.getMock());
+        if (history == null || history.isEmpty()) {
+            return;
+        }
+        for (int i = history.size() - 1; i >= 0; i--) {
+            if (history.get(i).equals(key)) {
+                history.remove(i);
+                break;
+            }
+        }
+        if (history.isEmpty()) {
+            invocationHistory.remove(key.getMock());
+        }
     }
 
     public List<ArgumentMatcher> consumeMatchersForVerification() {
