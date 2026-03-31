@@ -27,6 +27,7 @@ public final class DynamicMockito {
         if (key == null) {
             throw new IllegalStateException("when() called without a previous mock invocation");
         }
+        REGISTRY.removeInvocation(key);
         if (argumentMatchers.isEmpty()) {
             return new OngoingStubbingImpl<>(key, null);
         }
@@ -44,9 +45,11 @@ public final class DynamicMockito {
     public static void reset() {
         // Очищаем историю вызовов (если она хранится в реестре)
     // Очищаем заглушки
+
         REGISTRY.clearHistory();
         REGISTRY.reset();
     }
+
 
     public static <T> T any() {
         REGISTRY.registerMatcher(ArgumentMatchers.any());

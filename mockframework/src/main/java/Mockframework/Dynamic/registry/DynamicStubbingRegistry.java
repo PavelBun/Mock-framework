@@ -82,7 +82,15 @@ public final class DynamicStubbingRegistry {
         pendingMatchers.remove();
         invocationHistory.clear();
     }
-
+    public void removeInvocation(InvocationKey key) {
+        List<InvocationKey> list = invocationHistory.get(key.getMock());
+        if (list != null) {
+            list.remove(key);
+            if (list.isEmpty()) {
+                invocationHistory.remove(key.getMock());
+            }
+        }
+    }
     private static final class MatcherStub {
         private final Object mock;
         private final Method method;

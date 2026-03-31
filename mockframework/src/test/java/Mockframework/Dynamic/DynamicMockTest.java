@@ -7,6 +7,8 @@ import Mockframework.Dynamic.annotation.Mock;
 import Mockframework.Dynamic.api.DynamicMockito;
 import Mockframework.Dynamic.init.MockInitializer;
 import org.junit.jupiter.api.*;
+
+import static Mockframework.Dynamic.api.DynamicMockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 import java.util.Map;
@@ -40,28 +42,28 @@ class DynamicMockTest {
 
     @Test
     void shouldStubInterfaceMethod() {
-        DynamicMockito.when(mockedList.get(0)).thenReturn("first");
+        when(mockedList.get(0)).thenReturn("first");
         assertEquals("first", mockedList.get(0));
         assertNull(mockedList.get(1)); // default value
     }
 
     @Test
     void shouldStubMultipleCalls() {
-        DynamicMockito.when(mockedList.size()).thenReturn(10);
+        when(mockedList.size()).thenReturn(10);
         assertEquals(10, mockedList.size());
     }
 
     @Test
     void shouldThrowException() {
         IllegalArgumentException exception = new IllegalArgumentException("bad index");
-        DynamicMockito.when(mockedList.get(-1)).thenThrow(exception);
+        when(mockedList.get(-1)).thenThrow(exception);
         assertThrows(IllegalArgumentException.class, () -> mockedList.get(-1));
     }
 
     @Test
     void shouldWorkWithDifferentArguments() {
-        DynamicMockito.when(mockedMap.get("key1")).thenReturn(100);
-        DynamicMockito.when(mockedMap.get("key2")).thenReturn(200);
+        when(mockedMap.get("key1")).thenReturn(100);
+        when(mockedMap.get("key2")).thenReturn(200);
         assertEquals(100, mockedMap.get("key1"));
         assertEquals(200, mockedMap.get("key2"));
         assertNull(mockedMap.get("key3"));
@@ -69,7 +71,7 @@ class DynamicMockTest {
 
     @Test
     void shouldStubMethodWithNoArgs() {
-        DynamicMockito.when(mockedList.isEmpty()).thenReturn(true);
+        when(mockedList.isEmpty()).thenReturn(true);
         assertTrue(mockedList.isEmpty());
     }
 
@@ -94,14 +96,14 @@ class DynamicMockTest {
     @Test
     void shouldMockClass() {
         Calculator mockCalc = DynamicMockito.mock(Calculator.class);
-        DynamicMockito.when(mockCalc.add(2, 3)).thenReturn(100);
+        when(mockCalc.add(2, 3)).thenReturn(100);
         assertEquals(100, mockCalc.add(2, 3));
         assertEquals(0, mockCalc.add(1, 1)); // default
         assertNull(mockCalc.getMessage()); // default null
     }
     @Test
     void shouldChainThenReturn() {
-        DynamicMockito.when(mockedList.get(0)).thenReturn("first").thenReturn("second");
+        when(mockedList.get(0)).thenReturn("first").thenReturn("second");
         assertEquals("first", mockedList.get(0));
         assertEquals("second", mockedList.get(0));
         assertEquals("second", mockedList.get(0)); // повтор последнего
@@ -110,7 +112,7 @@ class DynamicMockTest {
     @Test
     void shouldChainThenThrowAfterReturn() {
         IllegalArgumentException exception = new IllegalArgumentException("error");
-        DynamicMockito.when(mockedList.get(0)).thenReturn("ok").thenThrow(exception);
+        when(mockedList.get(0)).thenReturn("ok").thenThrow(exception);
         assertEquals("ok", mockedList.get(0));
         assertThrows(IllegalArgumentException.class, () -> mockedList.get(0));
         assertThrows(IllegalArgumentException.class, () -> mockedList.get(0)); // после тоже исключение
@@ -120,7 +122,7 @@ class DynamicMockTest {
     void shouldChainThenAnswer() throws Throwable {
         Answer answer1 = args -> "answer1";
         Answer answer2 = args -> "answer2";
-        DynamicMockito.when(mockedList.get(0)).thenAnswer(answer1).thenAnswer(answer2);
+        when(mockedList.get(0)).thenAnswer(answer1).thenAnswer(answer2);
         assertEquals("answer1", mockedList.get(0));
         assertEquals("answer2", mockedList.get(0));
         assertEquals("answer2", mockedList.get(0));
@@ -128,7 +130,7 @@ class DynamicMockTest {
 
     @Test
     void shouldChainMixedThenReturnAndThenThrow() {
-        DynamicMockito.when(mockedList.get(0)).thenReturn("a").thenThrow(new RuntimeException("boom")).thenReturn("c");
+        when(mockedList.get(0)).thenReturn("a").thenThrow(new RuntimeException("boom")).thenReturn("c");
         assertEquals("a", mockedList.get(0));
         assertThrows(RuntimeException.class, () -> mockedList.get(0));
         assertEquals("c", mockedList.get(0)); // после исключения – следующий ответ
@@ -137,7 +139,7 @@ class DynamicMockTest {
 
     @Test
     void shouldResetChainedStubs() {
-        DynamicMockito.when(mockedList.size()).thenReturn(1).thenReturn(2);
+        when(mockedList.size()).thenReturn(1).thenReturn(2);
         assertEquals(1, mockedList.size());
         DynamicMockito.reset();
         assertEquals(0, mockedList.size()); // после сброса - значение по умолчанию
@@ -146,7 +148,7 @@ class DynamicMockTest {
     void shouldChainWithThenAnswerManipulatingArgs() throws Throwable {
         // Answer, который возвращает строку, зависящую от аргумента
         Answer answer = args -> "arg: " + args[0];
-        DynamicMockito.when(mockedList.get(0)).thenAnswer(answer);
+        when(mockedList.get(0)).thenAnswer(answer);
         assertEquals("arg: 0", mockedList.get(0));
     }
 
@@ -154,14 +156,14 @@ class DynamicMockTest {
     void shouldThrowCheckedException() {
         // Проверяем, что можно выбросить checked исключение
         Exception checkedException = new Exception("checked exception");
-        DynamicMockito.when(mockedList.get(0)).thenThrow(checkedException);
+        when(mockedList.get(0)).thenThrow(checkedException);
         assertThrows(Exception.class, () -> mockedList.get(0));
     }
 
     @Test
     void shouldReturnDefaultForNonStubbedArgsAfterChaining() {
         // Стаб для конкретного аргумента с цепочкой
-        DynamicMockito.when(mockedList.get(0)).thenReturn("first").thenReturn("second");
+        when(mockedList.get(0)).thenReturn("first").thenReturn("second");
         // Для другого аргумента стаба нет – должно вернуться default
         assertNull(mockedList.get(1));
         // Для стабленного аргумента цепочка работает
@@ -173,7 +175,7 @@ class DynamicMockTest {
     void shouldChainMultipleThenThrow() {
         RuntimeException firstEx = new RuntimeException("first");
         IllegalStateException secondEx = new IllegalStateException("second");
-        DynamicMockito.when(mockedList.get(0)).thenThrow(firstEx).thenThrow(secondEx);
+        when(mockedList.get(0)).thenThrow(firstEx).thenThrow(secondEx);
         assertThrows(RuntimeException.class, () -> mockedList.get(0));
         assertThrows(IllegalStateException.class, () -> mockedList.get(0));
         assertThrows(IllegalStateException.class, () -> mockedList.get(0)); // повтор последнего
@@ -182,7 +184,7 @@ class DynamicMockTest {
     @Test
     void shouldChainThenReturnAndThenAnswer() throws Throwable {
         Answer answer = args -> "answer";
-        DynamicMockito.when(mockedList.get(0)).thenReturn("return").thenAnswer(answer);
+        when(mockedList.get(0)).thenReturn("return").thenAnswer(answer);
         assertEquals("return", mockedList.get(0));
         assertEquals("answer", mockedList.get(0));
         assertEquals("answer", mockedList.get(0));
@@ -190,29 +192,29 @@ class DynamicMockTest {
 
     @Test
     void shouldSupportAnyMatcher() {
-        DynamicMockito.when(mockedMap.get(DynamicMockito.any())).thenReturn(111);
+        when(mockedMap.get(DynamicMockito.any())).thenReturn(111);
         assertEquals(111, mockedMap.get("alpha"));
         assertEquals(111, mockedMap.get("beta"));
     }
 
     @Test
     void shouldSupportEqMatcher() {
-        DynamicMockito.when(mockedMap.get(DynamicMockito.eq("target"))).thenReturn(222);
+        when(mockedMap.get(DynamicMockito.eq("target"))).thenReturn(222);
         assertEquals(222, mockedMap.get("target"));
         assertNull(mockedMap.get("other"));
     }
 
     @Test
     void shouldSupportContainsMatcher() {
-        DynamicMockito.when(textService.normalize(DynamicMockito.contains("adm"))).thenReturn("admin");
+        when(textService.normalize(DynamicMockito.contains("adm"))).thenReturn("admin");
         assertEquals("admin", textService.normalize("super-admin"));
         assertNull(textService.normalize("guest"));
     }
 
     @Test
     void shouldPreferExactStubOverMatcher() {
-        DynamicMockito.when(mockedMap.get(DynamicMockito.any())).thenReturn(111);
-        DynamicMockito.when(mockedMap.get("target")).thenReturn(222);
+        when(mockedMap.get(DynamicMockito.any())).thenReturn(111);
+        when(mockedMap.get("target")).thenReturn(222);
 
         assertEquals(222, mockedMap.get("target"));
         assertEquals(111, mockedMap.get("other"));
@@ -220,7 +222,7 @@ class DynamicMockTest {
 
     @Test
     void shouldSupportEqNullMatcher() {
-        DynamicMockito.when(textService.normalize(DynamicMockito.eq(null))).thenReturn("null-value");
+        when(textService.normalize(DynamicMockito.eq(null))).thenReturn("null-value");
 
         assertEquals("null-value", textService.normalize(null));
         assertNull(textService.normalize("something"));
@@ -228,7 +230,7 @@ class DynamicMockTest {
 
     @Test
     void shouldClearMatcherStubAfterReset() {
-        DynamicMockito.when(mockedMap.get(DynamicMockito.any())).thenReturn(777);
+        when(mockedMap.get(DynamicMockito.any())).thenReturn(777);
         assertEquals(777, mockedMap.get("before-reset"));
 
         DynamicMockito.reset();
@@ -240,7 +242,7 @@ class DynamicMockTest {
     void shouldFailWhenMatchersCountDoesNotMatchArguments() {
         IllegalStateException error = assertThrows(
             IllegalStateException.class,
-            () -> DynamicMockito.when(multiArgService.join(DynamicMockito.any(), "raw")).thenReturn("x")
+            () -> when(multiArgService.join(DynamicMockito.any(), "raw")).thenReturn("x")
         );
         assertTrue(error.getMessage().contains("expected 2 matchers but got 1"));
     }
@@ -250,73 +252,74 @@ class DynamicMockTest {
         DynamicMockito.any();
         assertThrows(
             IllegalStateException.class,
-            () -> DynamicMockito.when(mockedList.isEmpty()).thenReturn(true)
+            () -> when(mockedList.isEmpty()).thenReturn(true)
         );
 
-        DynamicMockito.when(mockedList.isEmpty()).thenReturn(false);
+        when(mockedList.isEmpty()).thenReturn(false);
         assertFalse(mockedList.isEmpty());
     }
 
     @Test
     void shouldVerifySingleCall() {
         mockedList.get(0);
-        DynamicMockito.verify(mockedList).get(0);
+        verify(mockedList).get(0);
     }
 
     @Test
     void shouldVerifyWithTimes() {
         mockedList.get(0);
         mockedList.get(0);
-        DynamicMockito.verify(mockedList, DynamicMockito.times(2)).get(0);
+        verify(mockedList, times(2)).get(0);
     }
 
     @Test
     void shouldVerifyNever() {
-        DynamicMockito.verify(mockedList, DynamicMockito.never()).get(0);
+        verify(mockedList, DynamicMockito.never()).get(0);
     }
 
     @Test
     void shouldVerifyAtLeast() {
         mockedList.get(0);
         mockedList.get(0);
-        DynamicMockito.verify(mockedList, DynamicMockito.atLeast(1)).get(0);
-        DynamicMockito.verify(mockedList, DynamicMockito.atLeast(2)).get(0);
+        verify(mockedList, DynamicMockito.atLeast(1)).get(0);
+        verify(mockedList, DynamicMockito.atLeast(2)).get(0);
     }
 
     @Test
     void shouldVerifyAtMost() {
         mockedList.get(0);
-        DynamicMockito.verify(mockedList, DynamicMockito.atMost(1)).get(0);
+        verify(mockedList, DynamicMockito.atMost(1)).get(0);
     }
     @Test
     void shouldVerifyWithAnyMatcher() {
         mockedList.get(10);
         mockedList.get(20);
-        DynamicMockito.verify(mockedList, DynamicMockito.times(2)).get(DynamicMockito.anyInt());
+        verify(mockedList, times(2)).get(DynamicMockito.anyInt());
     }
 
     @Test
     void shouldVerifyWithEqMatcher() {
         mockedList.get(42);
-        DynamicMockito.verify(mockedList).get(DynamicMockito.eq(42));
+        verify(mockedList).get(DynamicMockito.eq(42));
     }
     @Test
     void shouldVerifyWithContainsMatcher() {
         textService.normalize("admin");
-        DynamicMockito.verify(textService).normalize(DynamicMockito.contains("adm"));
+        verify(textService).normalize(DynamicMockito.contains("adm"));
     }
 
     @Test
     void shouldFailWhenWrongCallCount() {
         mockedList.get(0);
         Assertions.assertThrows(AssertionError.class,
-                () -> DynamicMockito.verify(mockedList, DynamicMockito.times(2)).get(0));
+                () -> verify(mockedList, times(2)).get(0));
     }
 
     @Test
     void shouldFailWhenNeverButCalled() {
         mockedList.get(0);
         Assertions.assertThrows(AssertionError.class,
-                () -> DynamicMockito.verify(mockedList, DynamicMockito.never()).get(0));
+                () -> verify(mockedList, DynamicMockito.never()).get(0));
     }
+
 }
