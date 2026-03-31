@@ -10,7 +10,7 @@
 - Очистка состояния через `MockedStatic.close()` (обычно через `try-with-resources`)
 
 ## Где смотреть демо
-- `examples/Mockframework/examples/StaticDemoTest.java` — демо только статического API
+- `examples/Mockframework/examples/DemoShowcaseTest.java` — единый demo-файл с dynamic + static сценариями
 
 ## Ключевые классы
 - `Mockframework.Static.Mockito` — публичный API для создания и настройки статических моков
